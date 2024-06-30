@@ -1,11 +1,11 @@
 {
-    "id": "my-plugin",
-    "name": "My Plugin",
+    "id": "attachment-collector",
+    "name": "Attachment Collector",
     "version": "0.0.1",
     "minAppVersion": "0.12.0",
-    "description": "A simple hello world plugin for Obsidian.",
-    "author": "Your Name",
-    "authorUrl": "https://yourwebsite.com",
+    "description": "Collect referenced attachments into ${filePath}/../attachments",
+    "author": "lihao2333",
+    "authorUrl": "https://github.com/lihao2333",
     "isDesktopOnly": false
 }
 
