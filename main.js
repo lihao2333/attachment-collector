@@ -1,25 +1,34 @@
-// main.js
-const { parseLinktext } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting } = require('obsidian');
 
-module.exports = class MyPlugin extends require('obsidian').Plugin {
+module.exports = class MyPlugin extends Plugin {
     async onload() {
         console.log('Loading MyPlugin');
+        await this.loadSettings();
 
-        // 添加命令
         this.addCommand({
-            id: 'move-attachments',
-            name: 'Move Attachments',
+            id: 'collect-attachments',
+            name: 'Collect Attachments',
             callback: () => {
-                this.moveAttachments();
+                this.collectAttachments();
             }
         });
+
+        this.addSettingTab(new SettingTab(this.app, this));
     }
 
     onunload() {
         console.log('Unloading MyPlugin');
     }
 
-    async moveAttachments() {
+    async loadSettings() {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    }
+
+    async saveSettings() {
+        await this.saveData(this.settings);
+    }
+
+    async collectAttachments() {
         const { Notice, TFile } = require('obsidian');
 
         const activeFile = this.app.workspace.getActiveFile();
@@ -28,10 +37,9 @@ module.exports = class MyPlugin extends require('obsidian').Plugin {
             return;
         }
 
-        const attachmentsFolderPath = `${activeFile.parent.path}/attachments`;
+        const attachmentsFolderPath = `${activeFile.parent.path}/${this.settings.attachmentsFolderName}`;
         console.log(`Creating attachments folder at: ${attachmentsFolderPath}`);
         await this.app.vault.createFolder(attachmentsFolderPath).catch(() => {
-            // Folder already exists
             console.log('Attachments folder already exists.');
         });
 
@@ -57,7 +65,8 @@ module.exports = class MyPlugin extends require('obsidian').Plugin {
 
     extractAttachmentPaths(content) {
         const attachmentPaths = [];
-        const markdownLinkRegex = /!\[\[([^\]]+)\]\]/g;
+        const extensionsRegex = this.settings.fileExtensions.join('|');
+        const markdownLinkRegex = new RegExp(`\\[\\[([^\\]]+\\.(${extensionsRegex}))\\]\\]`, 'g');
         let match;
         while ((match = markdownLinkRegex.exec(content)) !== null) {
             let attachmentPath = match[1];
@@ -67,6 +76,7 @@ module.exports = class MyPlugin extends require('obsidian').Plugin {
     }
 
     getAttachment(attachmentName, app) {
+        const { parseLinktext } = require('obsidian');
         const file_path = parseLinktext(attachmentName.replace(/(\.\/)|(\.\.\/)+/g, "")).path;
         let attachmentFile = app.vault.getAbstractFileByPath(file_path);
         if (!attachmentFile) {
@@ -74,4 +84,48 @@ module.exports = class MyPlugin extends require('obsidian').Plugin {
         }
         return attachmentFile;
     }
+};
+
+class SettingTab extends PluginSettingTab {
+    constructor(app, plugin) {
+        super(app, plugin);
+        this.plugin = plugin;
+    }
+
+    display() {
+        const { containerEl } = this;
+
+        containerEl.empty();
+
+        containerEl.createEl('h2', { text: 'MyPlugin Settings' });
+
+        containerEl.createEl('h3', { text: 'Attachments Folder Name' });
+        new Setting(containerEl)
+            .setName('Attachments Folder Name')
+            .setDesc('Folder name where attachments will be stored.')
+            .addText(text => text
+                .setPlaceholder('Enter folder name')
+                .setValue(this.plugin.settings.attachmentsFolderName)
+                .onChange(async (value) => {
+                    this.plugin.settings.attachmentsFolderName = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        containerEl.createEl('h3', { text: 'File Extensions' });
+        new Setting(containerEl)
+            .setName('File Extensions')
+            .setDesc('File extensions to be considered as attachments.')
+            .addText(text => text
+                .setPlaceholder('Enter extensions separated by commas')
+                .setValue(this.plugin.settings.fileExtensions.join(', '))
+                .onChange(async (value) => {
+                    this.plugin.settings.fileExtensions = value.split(',').map(ext => ext.trim());
+                    await this.plugin.saveSettings();
+                }));
+    }
+};
+
+const DEFAULT_SETTINGS = {
+    attachmentsFolderName: 'attachments',
+    fileExtensions: ['mp4', 'jpg', 'png']
 };
